@@ -9,15 +9,23 @@ from client import AioStratumClient
 async def main():
 	# --- Configuration ---
 	# Replace with your actual pool details
-	POOL_HOST = 	"solo.ckpool.org"
-	POOL_PORT = 	3333
-	BTC_ADDRESS = "13AM4VW2dhxYgXeQepoHkHSQuy6NgaEb94"
-	WORKER_NAME = "MyAwesomeAsyncMiner"
-	# Use a ProcessPoolExecutor for CPU-bound work to bypass the GIL.
-	# The number of workers should ideally match the number of CPU cores.
+	POOL_HOST = 			"solo.ckpool.org"
+	POOL_PORT = 			3333
+	WALLET_ADDRESS = 	"13AM4VW2dhxYgXeQepoHkHSQuy6NgaEb94"
+	WORKER_NAME = 		"hh"
+	POOL_PASSWORD = 	"x"
+	AGENT = 					"cpominer-25.32"
+
+	POOL_HOST = 			'yespower.jp2.mine.leywapool.com'
+	POOL_PORT = 			6322
+	WALLET_ADDRESS = 	'bJzPjHhEwjLPeTJGwePQ4KpDxLH1vvZoy4'
+	WORKER_NAME = 		'hh'
+	POOL_PASSWORD = 	'x'
+	AGENT = 					"cpuminer-oqt-25.32"
+
 	try:
 		loop = asyncio.get_running_loop()
-		client = AioStratumClient(loop, POOL_HOST, POOL_PORT, f"{BTC_ADDRESS}.{WORKER_NAME}", "x")
+		client = AioStratumClient(loop, POOL_HOST, POOL_PORT, f"{WALLET_ADDRESS}.{WORKER_NAME}", POOL_PASSWORD, AGENT)
 		task_manager = loop.create_task(task_manager_loop(client))
 		while True:
 			await asyncio.sleep(0)
@@ -25,6 +33,7 @@ async def main():
 				await client.connect()
 				await client.subscribe()
 				await client.authorize()
+				await client.subscribe_extranonce()
 			else:
 				await asyncio.sleep(30)				
 	except (KeyboardInterrupt, asyncio.CancelledError):

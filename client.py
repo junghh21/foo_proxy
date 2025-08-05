@@ -26,7 +26,7 @@ class AioStratumClient:
 	'asyncio' library is the correct and standard tool.
 	"""
 
-	def __init__(self, loop, host, port, username, password, agent="AioStratumClient/1.0"):
+	def __init__(self, loop, host, port, username, password, agent):
 		self.loop = loop
 		self.host = host
 		self.port = port
@@ -170,6 +170,7 @@ class AioStratumClient:
 		"""Handles 'mining.notify' messages."""
 		(job_id, prevhash, coinb1, coinb2, merkle_branch, version, nbits, ntime, clean_jobs) = params
 		self.job = {
+				"type": 1,
 				"job_id": job_id,
 				"prevhash": prevhash,
 				"coinb1": coinb1,
@@ -223,6 +224,16 @@ class AioStratumClient:
 			return True
 		else:
 			print("[Client] Worker authorization failed.")
+			return False
+	
+	async def subscribe_extranonce(self):
+		print(f"[Client] subscribe_extranonce...")
+		result = await self._send_request('mining.extranonce.subscribe', [])
+		if result:
+			print("[Client] subscribe_extranonce authorized.")
+			return True
+		else:
+			print("[Client] subscribe_extranonce failed.")
 			return False
 
 	async def submit(self, job_id, extranonce2, ntime, nonce):
