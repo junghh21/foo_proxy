@@ -106,7 +106,7 @@ async def task_manager_loop (client: AioStratumClient):
 	Manages mining tasks, dispatching work to a process pool executor.
 	This keeps the main asyncio event loop non-blocked.
 	"""	
-	num_workers = 8#os.cpu_count() or 4  # Default to 4 if cpu_count fails
+	num_workers = 2#os.cpu_count() or 4  # Default to 4 if cpu_count fails
 	while True:		
 		try:
 			#await asyncio.sleep(0)
