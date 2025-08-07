@@ -5,11 +5,20 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Python Debugger: Current File",
+      "name": "Python Debugger: foo_proxy",
       "type": "debugpy",
       "request": "launch",
       "program": "${file}",
-      "console": "integratedTerminal"
-    }
+      "console": "integratedTerminal",
+      //"cwd":"${workspaceFolder}/foo_proxy"
+    },
+    {
+      "name": "Python Debugger: foo_job",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal",
+      "cwd":"${workspaceFolder}/../foo_job"
+    },
   ]
 }

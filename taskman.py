@@ -15,11 +15,7 @@ import importlib
 import urls  # Your module
 
 
-async def worker1(id, url, queue, job, input_swap):
-	bin = input_swap.hex()
-	no = 	os.urandom(4).hex()#"40000000"#
-	mask = 	"00050000"
-
+async def worker1(id, url, queue, job, bin, no, mask):
 	cert_file = 'cert.pem'
 	key_file = 'key.pem'
 	ssl_context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
@@ -32,11 +28,13 @@ async def worker1(id, url, queue, job, input_swap):
 		connector = aiohttp.TCPConnector(ssl=ssl_context)
 		async with aiohttp.ClientSession(connector=connector) as session:
 			async with session.post(url, json={'bin': f"{bin}", 'no': f"{no}", 'mask': f"{mask}"}) as response:
+				cnt = 0
 				async for line in response.content:
 					line = line.decode('utf-8')
 					data = json.loads(line)
-					#print(data)
+					cnt += 1
 					if data['result'] == "True":
+						print(f"{id} : {data['mask']}({mask})")
 						await queue.put({
 							'type': 2,
 							'job_id': job['job_id'],
@@ -44,8 +42,9 @@ async def worker1(id, url, queue, job, input_swap):
 							'ntime': job['ntime'], # ntime is typically part of the job
 							'nonce': data['no'] # Nonce must be a hex string for submission
 						})
-					else:
-						print(f"{id} ...")
+					else:			
+						if cnt % 10 == 0:
+							print(f"{id}({cnt}) ... {url}")
 	except asyncio.CancelledError:
 		pass
 		#print(f"Worker {id} cancelled.")
@@ -80,7 +79,7 @@ async def task_manager_loop (client: AioStratumClient):
 				# When a new job arrives, cancel all previous mining tasks
 				await shutdown_mining_tasks()
 				print(f"[Manager] Got new job: {job['job_id']}. Distributing to workers...")
-				job['extranonce2'] = (b'\x00'*client.extranonce2_size).hex()#os.urandom(client.extranonce2_size).hex()
+				job['extranonce2'] = os.urandom(client.extranonce2_size).hex()#(b'\x00'*client.extranonce2_size).hex()#
 
 				coinbase_bin = bytes.fromhex(job['coinb1'] + client.extranonce1 + job['extranonce2'] + job['coinb2'])
 				coinbase_hash_bin = hashlib.sha256(hashlib.sha256(coinbase_bin).digest()).digest()
@@ -107,18 +106,24 @@ async def task_manager_loop (client: AioStratumClient):
 				#print([f"{d:08x}" for d in inputs[10:]])
 				input_swap = struct.pack(">20I", *inputs)
 		
-				# nonce_space = 2**32
-				# nonce_chunk_size = nonce_space // num_workers
-				# 
+				#nonce_space = 2**32
+				nonce_chunk_size = 200*30 # 200try 30 iter nonce_space // num_workers				# 
+
 				# for i in range(num_workers):
 				# 	start_nonce = i * nonce_chunk_size
 				# 	end_nonce = (i + 1) * nonce_chunk_size
 				# 	if i == num_workers - 1:
 				# 			end_nonce = nonce_space  # Ensure the last worker covers the full range
+				bin = input_swap.hex()
+				no = random.randint(0xA0000000, 0xB0000000)#os.urandom(4).hex()#"40000000"#
+				#mask = client.mask.hex()  #"001D0000"
+				mask_hex = f"{client.mask:08x}"
 				loop = asyncio.get_running_loop()
-				importlib.reload(urls)
+				importlib.reload(urls)    
 				for i, url in enumerate(urls.urls):
-					task = loop.create_task	(worker1(i, url, client.job_queue, job, input_swap))
+					no += nonce_chunk_size
+					no_hex = f"{no:08x}"										
+					task = loop.create_task	(worker1(i, url, client.job_queue, job, bin, no_hex, mask_hex))
 					mining_tasks.append(task)				
 		except asyncio.CancelledError:
 			print(f"[Manager] The manager task itself was cancelled")

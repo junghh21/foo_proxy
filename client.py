@@ -50,6 +50,26 @@ class AioStratumClient:
 		self._pending_requests = {}
 		self.job_queue = asyncio.Queue()
 		self._is_closed = True
+	
+		self.mask = 0x007F0000
+		self.accept_cnt = 0
+		self.reject_cnt = 0
+
+	async def _lower_mask(self):
+		while True:
+			await asyncio.sleep(30)
+			if self.accept_cnt == 0:				
+				self.mask *= 2
+				if self.mask > 0x007F0000:
+					self.mask = 0x007F0000	
+				print(f"========DOWN{self.mask=:08x}")
+			self.accept_cnt = 0
+			if self.reject_cnt > 2:				
+				self.reject_cnt = 0
+				self.mask //= 2
+				if self.mask < 0x0000FF00:
+					self.mask = 0x0000FF00
+				print(f"========UP{self.mask=:08x}")
 
 	async def connect(self):
 		"""Establishes a connection to the Stratum server."""
@@ -61,6 +81,7 @@ class AioStratumClient:
 			print("[Client] Connected successfully.")
 			# Start the listener task to handle incoming messages
 			self.loop.create_task(self._listen())
+			self.loop.create_task(self._lower_mask())
 			self._is_closed = False
 			return True
 		except (OSError, asyncio.TimeoutError) as e:
@@ -244,10 +265,13 @@ class AioStratumClient:
 			result = await self._send_request('mining.submit', params)
 			if result:
 				print(f"[Client] Share ACCEPTED for job {job_id}.")
+				self.accept_cnt += 1
 				return True
 			else:
 				print(f"[Client] Share REJECTED for job {job_id} (result: {result}).")
 				return False
 		except StratumError as e:
 			print(f"[Client] Share REJECTED for job {job_id} with error: {e}")
+			if e.code == 26:
+				self.reject_cnt += 1
 			return False
