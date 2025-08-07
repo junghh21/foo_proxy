@@ -85,7 +85,7 @@ async def micro():
 		asyncio.create_task(micro())
 		
 async def main():
-	#asyncio.create_task(bell())
+	asyncio.create_task(bell())
 	asyncio.create_task(micro())
 	while True:
 		await asyncio.sleep(10) # sleep for 1 hour

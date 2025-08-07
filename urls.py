@@ -4,12 +4,6 @@ urls_b = [
   "https://impartial-art-copy-1-production.up.railway.app/params",
   "https://impartial-art-copy-2-production.up.railway.app/params",
   "https://impartial-art-copy-3-production.up.railway.app/params",
-  
-  "https://impartial-art-production.up.railway.app/params",
-  "https://impartial-art-copy-production.up.railway.app/params",
-  "https://impartial-art-copy-1-production.up.railway.app/params",
-  "https://impartial-art-copy-2-production.up.railway.app/params",
-  "https://impartial-art-copy-3-production.up.railway.app/params",
 
   "https://radiant-respect-production.up.railway.app/params",
   
