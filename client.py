@@ -54,22 +54,24 @@ class AioStratumClient:
 		self.mask = 0x007F0000
 		self.accept_cnt = 0
 		self.reject_cnt = 0
+		self.task = "bell"
+		self.diff_delay = 30
 
-	async def _lower_mask(self):
-		while True:
-			await asyncio.sleep(30)
-			if self.accept_cnt == 0:				
-				self.mask *= 2
-				if self.mask > 0x007F0000:
-					self.mask = 0x007F0000	
-				print(f"========DOWN{self.mask=:08x}")
-			self.accept_cnt = 0
-			if self.reject_cnt > 2:				
-				self.reject_cnt = 0
-				self.mask //= 2
-				if self.mask < 0x0000FF00:
-					self.mask = 0x0000FF00
-				print(f"========UP{self.mask=:08x}")
+	# async def _lower_mask(self):
+	# 	while True:
+	# 		await asyncio.sleep(self.diff_delay)
+	# 		if self.accept_cnt == 0:				
+	# 			self.mask *= 2
+	# 			if self.mask > 0x007F0000:
+	# 				self.mask = 0x007F0000	
+	# 			print(f"========DOWN{self.mask=:08x}")
+	# 		self.accept_cnt = 0
+	# 		if self.reject_cnt > 2:				
+	# 			self.reject_cnt = 0
+	# 			self.mask //= 2
+	# 			if self.mask < 0x0000FF00:
+	# 				self.mask = 0x0000FF00
+	# 			print(f"========UP{self.mask=:08x}")
 
 	async def connect(self):
 		"""Establishes a connection to the Stratum server."""
@@ -81,7 +83,7 @@ class AioStratumClient:
 			print("[Client] Connected successfully.")
 			# Start the listener task to handle incoming messages
 			self.loop.create_task(self._listen())
-			self.loop.create_task(self._lower_mask())
+			#self.loop.create_task(self._lower_mask())
 			self._is_closed = False
 			return True
 		except (OSError, asyncio.TimeoutError) as e:
@@ -217,7 +219,16 @@ class AioStratumClient:
 		self.pool_difficulty = params[0]
 		# In a real miner, you'd convert this to a target.
 		# For BTC: target = 0x00000000FFFF0000000000000000000000000000000000000000000000000000 / difficulty
-		print(f"[Client] New pool difficulty: {self.pool_difficulty}")
+		
+		max_target_int = int("00FFFF00000000000000000000000000000000000000000000000000000000", 16)
+		max_target_int2 = max_target_int
+		pool_diff = self.pool_difficulty
+		pool_int = int(max_target_int2/pool_diff)
+		pool_h64 = f"{pool_int:064x}"
+		pool_diff = max_target_int/pool_int
+		pool_rate = pool_diff * 2**32 / 60
+		self.mask = int(pool_h64[:8], 16)
+		print(f"[Client] New pool difficulty: {self.pool_difficulty}, {self.mask:08x}, {pool_rate=:.2f} H/s")
 
 	async def subscribe(self):
 		"""Subscribes to mining notifications."""
@@ -272,6 +283,6 @@ class AioStratumClient:
 				return False
 		except StratumError as e:
 			print(f"[Client] Share REJECTED for job {job_id} with error: {e}")
-			if e.code == 26:
+			if e.code in [23, 26]:
 				self.reject_cnt += 1
 			return False

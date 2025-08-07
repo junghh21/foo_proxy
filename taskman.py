@@ -15,7 +15,7 @@ import importlib
 import urls  # Your module
 
 
-async def worker1(id, url, queue, job, bin, no, mask):
+async def worker1(id, url, client, job, bin, no, mask):
 	cert_file = 'cert.pem'
 	key_file = 'key.pem'
 	ssl_context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
@@ -35,7 +35,7 @@ async def worker1(id, url, queue, job, bin, no, mask):
 					cnt += 1
 					if data['result'] == "True":
 						print(f"{id} : {data['mask']}({mask})")
-						await queue.put({
+						await client.job_queue.put({
 							'type': 2,
 							'job_id': job['job_id'],
 							'extranonce2': job['extranonce2'],
@@ -107,7 +107,7 @@ async def task_manager_loop (client: AioStratumClient):
 				input_swap = struct.pack(">20I", *inputs)
 		
 				#nonce_space = 2**32
-				nonce_chunk_size = 200*30 # 200try 30 iter nonce_space // num_workers				# 
+				nonce_chunk_size = 200*50 # 200try 50 iter nonce_space // num_workers				# 
 
 				# for i in range(num_workers):
 				# 	start_nonce = i * nonce_chunk_size
@@ -120,10 +120,14 @@ async def task_manager_loop (client: AioStratumClient):
 				mask_hex = f"{client.mask:08x}"
 				loop = asyncio.get_running_loop()
 				importlib.reload(urls)    
-				for i, url in enumerate(urls.urls):
+				if client.task == "micro":
+					urls1 = urls.urls_m
+				else:
+					urls1 = urls.urls_b
+				for i, url in enumerate(urls1):
 					no += nonce_chunk_size
 					no_hex = f"{no:08x}"										
-					task = loop.create_task	(worker1(i, url, client.job_queue, job, bin, no_hex, mask_hex))
+					task = loop.create_task	(worker1(i, url, client, job, bin, no_hex, mask_hex))
 					mining_tasks.append(task)				
 		except asyncio.CancelledError:
 			print(f"[Manager] The manager task itself was cancelled")

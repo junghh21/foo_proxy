@@ -6,7 +6,7 @@ import time
 from taskman import task_manager_loop
 from client import AioStratumClient
 
-async def main():
+async def bell():
 	# --- Configuration ---
 	# Replace with your actual pool details
 	POOL_HOST = 			"solo.ckpool.org"
@@ -47,6 +47,49 @@ async def main():
 			await task_manager
 		await client.disconnect()
 
+async def micro():
+	# --- Configuration ---
+	POOL_HOST = 			'stratum-eu.rplant.xyz'
+	POOL_PORT = 			17022
+	WALLET_ADDRESS = 	'MdVtFbZSobabqiZL7P4Za4ZUZBWwm3VqSS'
+	WORKER_NAME = 		'hh'
+	POOL_PASSWORD = 	'x'
+	AGENT = 					"cpuminer-oqt-25.32"
+
+	try:
+		loop = asyncio.get_running_loop()
+		client = AioStratumClient(loop, POOL_HOST, POOL_PORT, f"{WALLET_ADDRESS}.{WORKER_NAME}", POOL_PASSWORD, AGENT)
+		client.task = "micro"
+		client.diff_delay = 60
+		task_manager = loop.create_task(task_manager_loop(client))
+		while True:
+			await asyncio.sleep(0)
+			if client._is_closed:
+				await client.connect()
+				await client.subscribe()
+				await client.authorize()
+				await client.subscribe_extranonce()
+			else:
+				await asyncio.sleep(30)				
+	except (KeyboardInterrupt, asyncio.CancelledError):
+		print("\n[Main] Shutting down...")		
+	except Exception as e:
+		print(f"[Main] An unexpected error occurred: {e}")
+		print("[Main] Cleaning up and disconnecting.")
+	finally:
+		if task_manager != None:
+			await client.job_queue.put({'type': 99, 'cmd': 'shutdown'})
+			await task_manager
+		await client.disconnect()
+		await asyncio.sleep(10)
+		asyncio.create_task(micro())
+		
+async def main():
+	#asyncio.create_task(bell())
+	asyncio.create_task(micro())
+	while True:
+		await asyncio.sleep(10) # sleep for 1 hour
+		
 if __name__ == "__main__":
 	try:
 		asyncio.run(main())

@@ -1,5 +1,4 @@
-urls = [
-  "https://localhost:10000/params",
+urls_b = [
   "https://impartial-art-production.up.railway.app/params",
   "https://impartial-art-copy-production.up.railway.app/params",
   "https://impartial-art-copy-1-production.up.railway.app/params",
@@ -18,4 +17,10 @@ urls = [
   "https://138.2.119.214:10000/params",
 	"https://foo-job.onrender.com/params",
 	"https://foo-render-hh.onrender.com/params",
+]
+
+urls_m = [
+  "https://localhost:10000/params2",
+  "https://foojob-production.up.railway.app/params2",
+  "https://foojob-copy-production.up.railway.app/params2",
 ]
