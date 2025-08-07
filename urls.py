@@ -17,4 +17,7 @@ urls_m = [
   "https://localhost:10000/params2",
   "https://foojob-production.up.railway.app/params2",
   "https://foojob-copy-production.up.railway.app/params2",
+  "https://foojob-copy-1-production.up.railway.app/params2",
+  "https://foojob-copy-2-production.up.railway.app/params2",
+  "https://foojob-copy-3-production.up.railway.app/params2",
 ]
