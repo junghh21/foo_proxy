@@ -1,4 +1,6 @@
 urls_b = [
+  "https://localhost:10000/params",
+  
   "https://impartial-art-production.up.railway.app/params",
   "https://impartial-art-copy-production.up.railway.app/params",
   "https://impartial-art-copy-1-production.up.railway.app/params",
@@ -15,6 +17,7 @@ urls_b = [
 
 urls_m = [
   "https://localhost:10000/params2",
+  
   "https://foojob-production.up.railway.app/params2",
   "https://foojob-copy-production.up.railway.app/params2",
   "https://foojob-copy-1-production.up.railway.app/params2",
