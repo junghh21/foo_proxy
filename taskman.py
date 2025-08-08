@@ -27,29 +27,53 @@ async def worker1(id, url, client, job, bin, no, mask):
 	try:
 		connector = aiohttp.TCPConnector(ssl=ssl_context)
 		async with aiohttp.ClientSession(connector=connector) as session:
-			async with session.post(url, json={'bin': f"{bin}", 'no': f"{no}", 'mask': f"{mask}"}) as response:
-				cnt = 0
-				async for line in response.content:
-					line = line.decode('utf-8')
-					data = json.loads(line)
-					cnt += 1
-					if data['result'] == "True":
-						print(f"{id} : {data['mask']}({mask})")
-						await client.job_queue.put({
-							'type': 2,
-							'job_id': job['job_id'],
-							'extranonce2': job['extranonce2'],
-							'ntime': job['ntime'], # ntime is typically part of the job
-							'nonce': data['no'] # Nonce must be a hex string for submission
-						})
-					else:			
-						if cnt % 10 == 0:
-							print(f"{id}({cnt}) ... {url}")
+			async def send_submit (data, job, no_show):
+				if data['result'] == "True":
+					print(f"{id} : {data['mask']}({mask})")
+					await client.job_queue.put({
+						'type': 2,
+						'job_id': job['job_id'],
+						'extranonce2': job['extranonce2'],
+						'ntime': job['ntime'], # ntime is typically part of the job
+						'nonce': data['no'] # Nonce must be a hex string for submission
+					})
+				else:
+					if no_show == 0:
+						print(f"{id}({cnt}) ... {url}")
+
+			if ".vercel.app/" in url or ":3000/" in url:
+				while True:
+					async with session.post(url, json={'bin': f"{bin}", 'no': f"{no}", 'mask': f"{mask}"}) as response:
+						try:
+							content = await response.text()
+							data = json.loads(content)
+							await send_submit (data, job, 1)
+							no = int(data['no'], 16)+1
+						except Exception as e:
+							print(e)
+							break
+			else:
+				async with session.post(url, json={'bin': f"{bin}", 'no': f"{no}", 'mask': f"{mask}"}) as response:
+					cnt = 0
+					async for line in response.content:
+						line = line.decode('utf-8')
+						data = json.loads(line)
+						cnt += 1
+						await send_submit (data, job, cnt%10)
+						
 	except asyncio.CancelledError:
 		pass
 		#print(f"Worker {id} cancelled.")
-	except:
-		pass
+	except aiohttp.ClientConnectorError as e:
+		print(f"Connection error to {url}: {e}")
+	except aiohttp.ClientResponseError as e:
+		print(f"Client response error from {url}: {e.status} - {e.message}")
+	except json.JSONDecodeError:
+		print(f"JSON decode error from {url}. Response was not valid JSON.")
+	except Exception as e:
+		print(f"An unexpected error occurred in worker {id} for {url}: {e}")
+		traceback.print_exc()
+		
 
 mining_tasks = []
 async def shutdown_mining_tasks():
