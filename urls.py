@@ -2,6 +2,7 @@ urls_b = [
   #"https://localhost:10000/params",
   
   "https://foo-job.vercel.app/params",
+  "https://silent-wave-77.vercel.app/params",
   
   "https://compassionate-prosperity-production-d266.up.railway.app/params",
   
@@ -17,6 +18,7 @@ urls_m = [
   #"http://localhost:3000/params2",
   
   "https://foo-job.vercel.app/params2",
+  "https://silent-wave-77.vercel.app/params2",
 
   "https://compassionate-prosperity-production-d266.up.railway.app/params2",
 ]
