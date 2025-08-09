@@ -14,7 +14,7 @@ urls_b = [
 urls_m = [
   #"https://localhost:10000/params2",
   
-  "http://localhost:3000/params2",
+  #"http://localhost:3000/params2",
   
   "https://foo-job.vercel.app/params2",
 
