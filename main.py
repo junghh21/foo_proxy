@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import random
+import threading
 import time
 from taskman import task_manager_loop
 from client import AioStratumClient
@@ -89,8 +90,41 @@ async def main():
 	asyncio.create_task(micro())
 	while True:
 		await asyncio.sleep(10) # sleep for 1 hour
+
+
+def check_and_pull(repo_path):
+	try:
+		# Fetch latest changes from origin
+		subprocess.run(["git", "-C", repo_path, "fetch"], check=True)
+		# Get local and remote HEAD commit hashes
+		local = subprocess.check_output(["git", "-C", repo_path, "rev-parse", "HEAD"]).strip()
+		remote = subprocess.check_output(["git", "-C", repo_path, "rev-parse", "@{u}"]).strip()
+		if local != remote:
+			print("📥 Updates available. Pulling...")
+			subprocess.run(["git", "-C", repo_path, "pull"], check=True)
+			return True
+		else:
+			print("✅ Already up to date.")
+	except subprocess.CalledProcessError as e:
+		print(f"❌ Git command failed: {e}")
+	except Exception as e:
+		print(f"⚠️ Unexpected error: {e}")
+
+def restart():
+		print("🔁 Restarting script...")
+		os.execv(sys.executable, ['python'] + sys.argv)
 		
+def periodic_git_check():
+	while True:
+		time.sleep(1800)
+		if check_and_pull("./"):
+			pass
+
 if __name__ == "__main__":
+	script_dir = os.path.dirname(os.path.abspath(__file__))
+	os.chdir(script_dir)
+	thread = threading.Thread(target=periodic_git_check, daemon=True)
+	thread.start()
 	try:
 		asyncio.run(main())
 	except KeyboardInterrupt:
