@@ -82,8 +82,6 @@ async def micro():
 			await client.job_queue.put({'type': 99, 'cmd': 'shutdown'})
 			await task_manager
 		await client.disconnect()
-		await asyncio.sleep(10)
-		asyncio.create_task(micro())
 		
 async def main():
 	asyncio.create_task(bell())

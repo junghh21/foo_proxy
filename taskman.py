@@ -5,7 +5,7 @@ import random
 import time
 import concurrent.futures
 import threading
-import traceback	
+import traceback
 import aiohttp
 import hashlib
 import struct
@@ -23,20 +23,21 @@ async def worker1(id, url, client, job, bin, no, mask):
 	ssl_context.verify_mode = ssl.CERT_NONE
 	ssl_context.load_cert_chain(certfile='cert.pem', keyfile='key.pem')
 	#print(f"Successfully loaded certificate from '{cert_file}' and key from '{key_file}'.")
-	
+
 	try:
 		connector = aiohttp.TCPConnector(ssl=ssl_context)
 		async with aiohttp.ClientSession(connector=connector) as session:
 			async def send_submit (data, job, no_show):
-				if data['result'] == "True":
-					print(f"{id} : {data['mask']}({mask})")
-					await client.job_queue.put({
-						'type': 2,
-						'job_id': job['job_id'],
-						'extranonce2': job['extranonce2'],
-						'ntime': job['ntime'], # ntime is typically part of the job
-						'nonce': data['no'] # Nonce must be a hex string for submission
-					})
+				if "result" in data:
+					if data['result'] == "True":
+						print(f"{id} : {data['mask']}({mask})")
+						await client.job_queue.put({
+							'type': 2,
+							'job_id': job['job_id'],
+							'extranonce2': job['extranonce2'],
+							'ntime': job['ntime'], # ntime is typically part of the job
+							'nonce': data['no'] # Nonce must be a hex string for submission
+						})
 				else:
 					if no_show == 0:
 						print(f"{id}({cnt}) ... {url}")
@@ -56,11 +57,12 @@ async def worker1(id, url, client, job, bin, no, mask):
 				async with session.post(url, json={'bin': f"{bin}", 'no': f"{no}", 'mask': f"{mask}"}) as response:
 					cnt = 0
 					async for line in response.content:
+						#print(line)
 						line = line.decode('utf-8')
 						data = json.loads(line)
 						cnt += 1
 						await send_submit (data, job, cnt%10)
-						
+
 	except asyncio.CancelledError:
 		pass
 		#print(f"Worker {id} cancelled.")
@@ -73,7 +75,7 @@ async def worker1(id, url, client, job, bin, no, mask):
 	except Exception as e:
 		print(f"An unexpected error occurred in worker {id} for {url}: {e}")
 		traceback.print_exc()
-		
+
 
 mining_tasks = []
 async def shutdown_mining_tasks():
@@ -85,10 +87,10 @@ async def shutdown_mining_tasks():
 		results = await asyncio.gather(*mining_tasks, return_exceptions=True)
 		mining_tasks = []
 		#print(results)
-	
+
 async def task_manager_loop (client: AioStratumClient):
 	global mining_tasks
-	while True:		
+	while True:
 		try:
 			#await asyncio.sleep(0)
 			# Wait for a new job from the server
@@ -98,7 +100,7 @@ async def task_manager_loop (client: AioStratumClient):
 			if job['type'] == 99:
 				await shutdown_mining_tasks()
 			elif job['type'] == 2:
-				await client.submit(job['job_id'], job['extranonce2'], job['ntime'], job['nonce'])			
+				await client.submit(job['job_id'], job['extranonce2'], job['ntime'], job['nonce'])
 			elif job['type'] == 1:
 				# When a new job arrives, cancel all previous mining tasks
 				await shutdown_mining_tasks()
@@ -129,9 +131,9 @@ async def task_manager_loop (client: AioStratumClient):
 				#print([f"{d:08x}" for d in inputs[:10]])
 				#print([f"{d:08x}" for d in inputs[10:]])
 				input_swap = struct.pack(">20I", *inputs)
-		
+
 				#nonce_space = 2**32
-				nonce_chunk_size = 200*50 # 200try 50 iter nonce_space // num_workers				# 
+				nonce_chunk_size = 200*50 # 200try 50 iter nonce_space // num_workers				#
 
 				# for i in range(num_workers):
 				# 	start_nonce = i * nonce_chunk_size
@@ -143,16 +145,24 @@ async def task_manager_loop (client: AioStratumClient):
 				#mask = client.mask.hex()  #"001D0000"
 				mask_hex = f"{client.mask:08x}"
 				loop = asyncio.get_running_loop()
-				importlib.reload(urls)    
+				importlib.reload(urls)
 				if client.task == "micro":
-					urls1 = urls.urls_m
-				else:
-					urls1 = urls.urls_b
-				for i, url in enumerate(urls1):
-					no += nonce_chunk_size
-					no_hex = f"{no:08x}"										
-					task = loop.create_task	(worker1(i, url, client, job, bin, no_hex, mask_hex))
-					mining_tasks.append(task)				
+					for i, url in enumerate(urls.urls_m):
+						no += nonce_chunk_size
+						no_hex = f"{no:08x}"
+						task = loop.create_task	(worker1(i, url, client, job, bin, no_hex, mask_hex))
+						mining_tasks.append(task)
+					for i, url in enumerate(urls.urls_brg_m):
+						no += 0x10000000
+						no_hex = f"{no:08x}"
+						task = loop.create_task	(worker1(i, url, client, job, bin, no_hex, mask_hex))
+						mining_tasks.append(task)
+				if client.task == "bell":
+					for i, url in enumerate(urls.urls_b):
+						no += nonce_chunk_size
+						no_hex = f"{no:08x}"
+						task = loop.create_task	(worker1(i, url, client, job, bin, no_hex, mask_hex))
+						mining_tasks.append(task)
 		except asyncio.CancelledError:
 			print(f"[Manager] The manager task itself was cancelled")
 			break # The manager task itself was cancelled
@@ -160,5 +170,5 @@ async def task_manager_loop (client: AioStratumClient):
 			continue # No job for 60 seconds, just continue waiting
 		except Exception as e:
 			print(f"[Manager] Error in manager loop: {e}")
-			traceback.print_exc()	
+			traceback.print_exc()
 			await asyncio.sleep(5)
