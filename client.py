@@ -157,14 +157,15 @@ class AioStratumClient:
 				except (ConnectionResetError, BrokenPipeError):
 						if not self._is_closed:
 								print("[Client] Connection lost.")
-								await self.disconnect()
-						break
 				except json.JSONDecodeError:
 						print(f"[Client] Error decoding JSON: {message}")
 				except Exception as e:
 						if not self._is_closed:
 								print(f"[Client] An unexpected error occurred in listener: {e}")
-						break
+				finally:
+					await self.disconnect()
+					await self.connect()
+					return
 
 	async def _handle_response(self, response):
 		"""Handles both RPC responses and server notifications."""
