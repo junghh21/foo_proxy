@@ -26,7 +26,7 @@ async def bell():
 
 	try:
 		loop = asyncio.get_running_loop()
-		client = AioStratumClient(loop, POOL_HOST, POOL_PORT, f"{WALLET_ADDRESS}.{WORKER_NAME}", POOL_PASSWORD, AGENT)
+		client = AioStratumClient(loop, "bell", POOL_HOST, POOL_PORT, f"{WALLET_ADDRESS}.{WORKER_NAME}", POOL_PASSWORD, AGENT)
 		task_manager = loop.create_task(task_manager_loop(client))
 		while True:
 			await asyncio.sleep(0)
@@ -59,7 +59,7 @@ async def micro():
 
 	try:
 		loop = asyncio.get_running_loop()
-		client = AioStratumClient(loop, POOL_HOST, POOL_PORT, f"{WALLET_ADDRESS}.{WORKER_NAME}", POOL_PASSWORD, AGENT)
+		client = AioStratumClient(loop, "micro", POOL_HOST, POOL_PORT, f"{WALLET_ADDRESS}.{WORKER_NAME}", POOL_PASSWORD, AGENT)
 		client.task = "micro"
 		client.diff_delay = 60
 		task_manager = loop.create_task(task_manager_loop(client))

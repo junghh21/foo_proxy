@@ -13,7 +13,7 @@ class StratumError(Exception):
 		else:
 				self.code = -1
 				self.message = str(error_details)
-		super().__init__(f"Stratum Error Code {self.code}: {self.message}")
+		super().__init__(f"Error {self.code}: {self.message}")
 
 
 class AioStratumClient:
@@ -26,14 +26,15 @@ class AioStratumClient:
 	'asyncio' library is the correct and standard tool.
 	"""
 
-	def __init__(self, loop, host, port, username, password, agent):
+	def __init__(self, loop, name, host, port, username, password, agent):
+		self.name = name
 		self.loop = loop
 		self.host = host
 		self.port = port
 		self.username = username
 		self.password = password
 		self.agent = agent
-
+		
 		self.reader = None
 		self.writer = None
 
@@ -75,19 +76,19 @@ class AioStratumClient:
 
 	async def connect(self):
 		"""Establishes a connection to the Stratum server."""
-		print(f"[Client] Connecting to {self.host}:{self.port}...")
+		print(f"[{self.name}] Connecting to {self.host}:{self.port}...")
 		if not self._is_closed:
 			return False
 		try:
 			self.reader, self.writer = await asyncio.open_connection(self.host, self.port)
-			print("[Client] Connected successfully.")
+			print(f"[{self.name}] Connected successfully.")
 			# Start the listener task to handle incoming messages
 			self.loop.create_task(self._listen())
 			#self.loop.create_task(self._lower_mask())
 			self._is_closed = False
 			return True
 		except (OSError, asyncio.TimeoutError) as e:
-			print(f"[Client] Connection failed: {e}")
+			print(f"[{self.name}] Connection failed: {e}")
 			return False
 
 	async def disconnect(self):
@@ -96,15 +97,15 @@ class AioStratumClient:
 			return
 		self._is_closed = True
 		if self.writer:
-			print("[Client] Disconnecting...")
+			print(f"[{self.name}] Disconnecting...")
 			self.writer.close()
 			try:
 				await self.writer.wait_closed()
 			except Exception as e:
-				print(f"[Client] Error during wait_closed: {e}")
+				print(f"[{self.name}] Error during wait_closed: {e}")
 			self.writer = None
 			self.reader = None
-			print("[Client] Disconnected.")
+			print(f"[{self.name}] Disconnected.")
 
 	async def _send_request(self, method, params=None):
 		"""Sends a JSON-RPC request and waits for the response."""
@@ -124,7 +125,7 @@ class AioStratumClient:
 		self._pending_requests[request_id] = future
 
 		message = json.dumps(payload) + '\n'
-		print(f"[Client] -> {message.strip()}")
+		#print(f"[{self.name}] -> {message.strip()}")
 		self.writer.write(message.encode('utf-8'))
 		await self.writer.drain()
 
@@ -145,26 +146,26 @@ class AioStratumClient:
 						data = await self.reader.readline()
 						if not data:
 								if not self._is_closed:
-										print("[Client] Connection closed by server.")
+										print(f"[{self.name}] Connection closed by server.")
 										await self.disconnect()
 								break
 						message = data.decode('utf-8').strip()
 						if not message:
 								continue
-						print(f"[Client] <- {message}")
+						#print(f"[{self.name}] <- {message}")
 						response = json.loads(message)
 						await self._handle_response(response)
 				except (ConnectionResetError, BrokenPipeError):
 						if not self._is_closed:
-								print("[Client] Connection lost.")
+								print(f"[{self.name}] Connection lost.")
 								await self.disconnect()
 								await self.connect()
 								return
 				except json.JSONDecodeError:
-						print(f"[Client] Error decoding JSON: {message}")
+						print(f"[{self.name}] Error decoding JSON: {message}")
 				except Exception as e:
 						if not self._is_closed:
-								print(f"[Client] An unexpected error occurred in listener: {e}")
+								print(f"[{self.name}] An unexpected error occurred in listener: {e}")
 								await self.disconnect()
 								await self.connect()
 								return
@@ -189,9 +190,9 @@ class AioStratumClient:
 				elif method == 'mining.set_difficulty':
 						await self._handle_set_difficulty(params)
 				else:
-						print(f"[Client] Unhandled notification: {method}")
+						print(f"[{self.name}] Unhandled notification: {method}")
 		else:
-				print(f"[Client] Received unknown message: {response}")
+				print(f"[{self.name}] Received unknown message: {response}")
 
 	async def _handle_notify(self, params):
 		"""Handles 'mining.notify' messages."""
@@ -208,7 +209,7 @@ class AioStratumClient:
 				"ntime": ntime,
 				"clean_jobs": clean_jobs,
 		}
-		print(f"[Client] New job received: {job_id}")
+		print(f"[{self.name}] New job received: {job_id}")
 		# # If it's a clean job, we should clear the queue to prioritize this one.
 		# if clean_jobs:
 		# 		while not self.job_queue.empty():
@@ -232,11 +233,11 @@ class AioStratumClient:
 		pool_diff = max_target_int/pool_int
 		pool_rate = pool_diff * 2**32 / 60
 		self.mask = int(pool_h64[:8], 16)
-		print(f"[Client] New pool difficulty: {self.pool_difficulty}, {self.mask:08x}, {pool_rate=:.2f} H/s")
+		print(f"[{self.name}] New pool difficulty: {self.pool_difficulty}, {self.mask:08x}, {pool_rate=:.2f} H/s")
 
 	async def subscribe(self):
 		"""Subscribes to mining notifications."""
-		print("[Client] Subscribing to pool...")
+		print(f"[{self.name}] Subscribing to pool...")
 		result = await self._send_request('mining.subscribe', [self.agent])
 		# result = ([('mining.notify', 'subscription_id'), ...], extranonce1, extranonce2_size)
 		(subscriptions, self.extranonce1, self.extranonce2_size) = result
@@ -245,7 +246,7 @@ class AioStratumClient:
 				if sub[0] == 'mining.notify':
 						self.session_id = sub[1]
 						break
-		print("[Client] Subscribed successfully!")
+		print(f"[{self.name}] Subscribed successfully!")
 		print(f"  - Session ID: {self.session_id}")
 		print(f"  - Extranonce1: {self.extranonce1}")
 		print(f"  - Extranonce2 Size: {self.extranonce2_size}")
@@ -253,40 +254,40 @@ class AioStratumClient:
 
 	async def authorize(self):
 		"""Authorizes the worker."""
-		print(f"[Client] Authorizing worker: {self.username}...")
+		print(f"[{self.name}] Authorizing worker: {self.username}...")
 		result = await self._send_request('mining.authorize', [self.username, self.password])
 		if result:
-			print("[Client] Worker authorized.")
+			print(f"[{self.name}] Worker authorized.")
 			return True
 		else:
-			print("[Client] Worker authorization failed.")
+			print(f"[{self.name}] Worker authorization failed.")
 			return False
 	
 	async def subscribe_extranonce(self):
-		print(f"[Client] subscribe_extranonce...")
+		print(f"[{self.name}] subscribe_extranonce...")
 		result = await self._send_request('mining.extranonce.subscribe', [])
 		if result:
-			print("[Client] subscribe_extranonce authorized.")
+			print(f"[{self.name}] subscribe_extranonce authorized.")
 			return True
 		else:
-			print("[Client] subscribe_extranonce failed.")
+			print(f"[{self.name}] subscribe_extranonce failed.")
 			return False
 
 	async def submit(self, job_id, extranonce2, ntime, nonce):
 		"""Submits a found share to the pool."""
 		params = [self.username, job_id, extranonce2, ntime, nonce]
-		print(f"[Client] Submitting share for job {job_id} with nonce {nonce}...")
+		print(f"[{self.name}] Submitting share for job {job_id} with nonce {nonce}...")
 		try:
 			result = await self._send_request('mining.submit', params)
 			if result:
-				print(f"[Client] Share ACCEPTED for job {job_id}.")
+				print(f"[{self.name}] Share ACCEPTED for job {job_id}.")
 				self.accept_cnt += 1
 				return True
 			else:
-				print(f"[Client] Share REJECTED for job {job_id} (result: {result}).")
+				print(f"[{self.name}] Share REJECTED for job {job_id} (result: {result}).")
 				return False
 		except StratumError as e:
-			print(f"[Client] Share REJECTED for job {job_id} with error: {e}")
+			print(f"[{self.name}] Share REJECTED for job {job_id} with error: {e}")
 			if e.code in [23, 26]:
 				self.reject_cnt += 1
 			return False
