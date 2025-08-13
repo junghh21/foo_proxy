@@ -91,7 +91,7 @@ async def task_manager_loop (client: AioStratumClient):
 			elif job['type'] == 1:
 				# When a new job arrives, cancel all previous mining tasks
 				await client.shutdown_mining_tasks()
-				print(f"[Manager] Got new job: {job['job_id']}. Distributing to workers...")
+				print(f"[{client.name}] Got new job: {job['job_id']}. Distributing to workers...")
 				job['extranonce2'] = os.urandom(client.extranonce2_size).hex()#(b'\x00'*client.extranonce2_size).hex()#
 
 				coinbase_bin = bytes.fromhex(job['coinb1'] + client.extranonce1 + job['extranonce2'] + job['coinb2'])
