@@ -3,6 +3,8 @@ import json
 import os
 import random
 import time
+import hashlib
+import struct
 
 class StratumError(Exception):
 	"""Custom exception for Stratum-related errors."""
@@ -26,9 +28,8 @@ class AioStratumClient:
 	'asyncio' library is the correct and standard tool.
 	"""
 
-	def __init__(self, loop, name, host, port, username, password, agent):
+	def __init__(self, name, host, port, username, password, agent):
 		self.name = name
-		self.loop = loop
 		self.host = host
 		self.port = port
 		self.username = username
@@ -67,6 +68,7 @@ class AioStratumClient:
 			results = await asyncio.gather(*self.mining_tasks, return_exceptions=True)
 			self.mining_tasks = []
 			#print(results)
+
 	async def connect(self):
 		"""Establishes a connection to the Stratum server."""
 		print(f"[{self.name}] Connecting to {self.host}:{self.port}...")
@@ -76,8 +78,7 @@ class AioStratumClient:
 			self.reader, self.writer = await asyncio.open_connection(self.host, self.port)
 			print(f"[{self.name}] Connected successfully.")
 			# Start the listener task to handle incoming messages
-			self.loop.create_task(self._listen())
-			#self.loop.create_task(self._lower_mask())
+			asyncio.create_task(self._listen())
 			self._is_closed = False
 			return True
 		except (OSError, asyncio.TimeoutError) as e:
@@ -113,8 +114,8 @@ class AioStratumClient:
 			"method": method,
 			"params": params or []
 		}
-		
-		future = self.loop.create_future()
+		loop = asyncio.get_running_loop()
+		future = loop.create_future()
 		self._pending_requests[request_id] = future
 
 		message = json.dumps(payload) + '\n'
@@ -189,27 +190,38 @@ class AioStratumClient:
 	async def _handle_notify(self, params):
 		"""Handles 'mining.notify' messages."""
 		(job_id, prevhash, coinb1, coinb2, merkle_branch, version, nbits, ntime, clean_jobs) = params
-		self.job = {
+		job = {
 				"type": 1,
 				"job_id": job_id,
-				"prevhash": prevhash,
-				"coinb1": coinb1,
-				"coinb2": coinb2,
-				"merkle_branch": merkle_branch,
-				"version": version,
-				"nbits": nbits,
 				"ntime": ntime,
-				"clean_jobs": clean_jobs,
 		}
-		print(f"[{self.name}] New job received: {job_id}")
-		# # If it's a clean job, we should clear the queue to prioritize this one.
-		# if clean_jobs:
-		# 		while not self.job_queue.empty():
-		# 				try:
-		# 						self.job_queue.get_nowait()
-		# 				except asyncio.QueueEmpty:
-		# 						break
-		await self.job_queue.put(self.job)
+		#print(f"[{self.name}] New job received: {job_id}")
+		job['extranonce2'] = os.urandom(self.extranonce2_size).hex()#(b'\x00'*client.extranonce2_size).hex()#
+		coinbase_bin = bytes.fromhex(coinb1 + self.extranonce1 + job['extranonce2'] + coinb2)
+		coinbase_hash_bin = hashlib.sha256(hashlib.sha256(coinbase_bin).digest()).digest()
+		merkle_root_bin = coinbase_hash_bin
+		for branch in merkle_branch:
+			merkle_root_bin = hashlib.sha256(hashlib.sha256((merkle_root_bin + bytes.fromhex(branch))).digest()).digest()
+		merkle_root_1 = struct.unpack("<8I", merkle_root_bin)
+		#print([f"{d:08x}" for d in merkle_root_1])
+		merkle_root = ''.join([f"{d:08x}" for d in merkle_root_1])
+		header_bin = bytes.fromhex(version) \
+								+ bytes.fromhex(prevhash) \
+								+ bytes.fromhex(merkle_root) \
+								+ bytes.fromhex(ntime) \
+								+ bytes.fromhex(nbits)
+
+		nonce = "00000000"
+		nonce_bin = bytes.fromhex(nonce)
+		input = header_bin+nonce_bin
+
+		inputs = struct.unpack("<20I", input)
+		#print([f"{d:08x}" for d in inputs[:10]])
+		#print([f"{d:08x}" for d in inputs[10:]])
+		input_swap = struct.pack(">20I", *inputs)
+		job['bin'] = input_swap.hex()
+		job['mask'] = f"{self.mask:08x}"
+		await self.job_queue.put(job)
 
 	async def _handle_set_difficulty(self, params):
 		"""Handles 'mining.set_difficulty' messages."""
