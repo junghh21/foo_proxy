@@ -59,7 +59,7 @@ class AioStratumClient:
 		self.diff_delay = 30
 		self.mining_tasks = []
 
-	async def shutdown_mining_tasks():
+	async def shutdown_mining_tasks(self):
 		if len(self.mining_tasks) > 0:
 			print(f"[{self.name}] New job cancelling {len(self.mining_tasks)} old tasks.")
 			for task in self.mining_tasks:
