@@ -120,6 +120,7 @@ async def task_manager_loop (name, POOL_HOST, POOL_PORT, WALLET_ADDRESS, WORKER_
 						client.mining_tasks.append(task)
 		except (KeyboardInterrupt, asyncio.CancelledError):
 			print(f"[Manager] The manager task itself was cancelled")
+			await client.shutdown_mining_tasks()
 			break # The manager task itself was cancelled
 		except Exception as e:
 			print(f"[Manager] Error in manager loop: {e}")
