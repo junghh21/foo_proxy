@@ -259,7 +259,7 @@ class AioStratumClient:
 	async def submit(self, job_id, extranonce2, ntime, nonce):
 		"""Submits a found share to the pool."""
 		params = [self.username, job_id, extranonce2, ntime, nonce]
-		print(f"[{self.name}] Submitting share for job {job_id} with nonce {nonce}...")
+		#print(f"[{self.name}] Submitting share for job {job_id} with nonce {nonce}...")
 		try:
 			result = await self._send_request('mining.submit', params)
 			if result:
