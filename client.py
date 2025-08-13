@@ -129,9 +129,8 @@ class AioStratumClient:
 				try:
 						data = await asyncio.wait_for(self.reader.readline(), 90)
 						if not data:
-										print(f"[{self.name}] Connection closed by server. reconnect")
+										print(f"[{self.name}] Connection closed by server. disconnect")
 										await self.disconnect()
-										await self.connect()
 										return
 						message = data.decode('utf-8').strip()
 						if not message:
@@ -140,21 +139,18 @@ class AioStratumClient:
 						response = json.loads(message)
 						await self._handle_response(response)
 				except asyncio.TimeoutError:
-								print(f"[{self.name}] Connection Timeout  reconnect.")
+								print(f"[{self.name}] Connection Timeout  disconnect.")
 								await self.disconnect()
-								await self.connect()
 								return
 				except (ConnectionResetError, BrokenPipeError):
-								print(f"[{self.name}] Connection lost. reconnect")
+								print(f"[{self.name}] Connection lost. disconnect")
 								await self.disconnect()
-								await self.connect()
 								return
 				except json.JSONDecodeError:
 						print(f"[{self.name}] Error decoding JSON: {message}")
 				except Exception as e:
-								print(f"[{self.name}] An unexpected error occurred in listener: {e} reconnect")
+								print(f"[{self.name}] An unexpected error occurred in listener: {e} disconnect")
 								await self.disconnect()
-								await self.connect()
 								return
 					
 
