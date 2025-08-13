@@ -76,34 +76,21 @@ async def worker1(id, url, client, job, bin, no, mask):
 		print(f"An unexpected error occurred in worker {id} for {url}: {e}")
 		traceback.print_exc()
 
-
-mining_tasks = []
-async def shutdown_mining_tasks():
-	global mining_tasks
-	if len(mining_tasks) > 0:
-		print(f"[Manager] New job cancelling {len(mining_tasks)} old tasks.")
-		for task in mining_tasks:
-			task.cancel()
-		results = await asyncio.gather(*mining_tasks, return_exceptions=True)
-		mining_tasks = []
-		#print(results)
-
 async def task_manager_loop (client: AioStratumClient):
-	global mining_tasks
 	while True:
 		try:
 			#await asyncio.sleep(0)
 			# Wait for a new job from the server
 			job = await asyncio.wait_for(client.job_queue.get(), timeout=1)
 			if client._is_closed:
-				await shutdown_mining_tasks()
+				await client.shutdown_mining_tasks()
 			if job['type'] == 99:
-				await shutdown_mining_tasks()
+				await client.shutdown_mining_tasks()
 			elif job['type'] == 2:
 				await client.submit(job['job_id'], job['extranonce2'], job['ntime'], job['nonce'])
 			elif job['type'] == 1:
 				# When a new job arrives, cancel all previous mining tasks
-				await shutdown_mining_tasks()
+				await client.shutdown_mining_tasks()
 				print(f"[Manager] Got new job: {job['job_id']}. Distributing to workers...")
 				job['extranonce2'] = os.urandom(client.extranonce2_size).hex()#(b'\x00'*client.extranonce2_size).hex()#
 
@@ -151,18 +138,18 @@ async def task_manager_loop (client: AioStratumClient):
 						no += nonce_chunk_size
 						no_hex = f"{no:08x}"
 						task = loop.create_task	(worker1(i, url, client, job, bin, no_hex, mask_hex))
-						mining_tasks.append(task)
+						client.mining_tasks.append(task)
 					for i, url in enumerate(urls.urls_brg_m):
 						no += 0x10000000
 						no_hex = f"{no:08x}"
 						task = loop.create_task	(worker1(i, url, client, job, bin, no_hex, mask_hex))
-						mining_tasks.append(task)
+						client.mining_tasks.append(task)
 				if client.task == "bell":
 					for i, url in enumerate(urls.urls_b):
 						no += nonce_chunk_size
 						no_hex = f"{no:08x}"
 						task = loop.create_task	(worker1(i, url, client, job, bin, no_hex, mask_hex))
-						mining_tasks.append(task)
+						client.mining_tasks.append(task)
 		except asyncio.CancelledError:
 			print(f"[Manager] The manager task itself was cancelled")
 			break # The manager task itself was cancelled

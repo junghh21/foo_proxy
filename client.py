@@ -57,7 +57,16 @@ class AioStratumClient:
 		self.reject_cnt = 0
 		self.task = "bell"
 		self.diff_delay = 30
+		self.mining_tasks = []
 
+	async def shutdown_mining_tasks():
+		if len(self.mining_tasks) > 0:
+			print(f"[{self.name}] New job cancelling {len(self.mining_tasks)} old tasks.")
+			for task in self.mining_tasks:
+				task.cancel()
+			results = await asyncio.gather(*self.mining_tasks, return_exceptions=True)
+			self.mining_tasks = []
+			#print(results)
 	async def connect(self):
 		"""Establishes a connection to the Stratum server."""
 		print(f"[{self.name}] Connecting to {self.host}:{self.port}...")
