@@ -58,22 +58,6 @@ class AioStratumClient:
 		self.task = "bell"
 		self.diff_delay = 30
 
-	# async def _lower_mask(self):
-	# 	while True:
-	# 		await asyncio.sleep(self.diff_delay)
-	# 		if self.accept_cnt == 0:				
-	# 			self.mask *= 2
-	# 			if self.mask > 0x007F0000:
-	# 				self.mask = 0x007F0000	
-	# 			print(f"========DOWN{self.mask=:08x}")
-	# 		self.accept_cnt = 0
-	# 		if self.reject_cnt > 2:				
-	# 			self.reject_cnt = 0
-	# 			self.mask //= 2
-	# 			if self.mask < 0x0000FF00:
-	# 				self.mask = 0x0000FF00
-	# 			print(f"========UP{self.mask=:08x}")
-
 	async def connect(self):
 		"""Establishes a connection to the Stratum server."""
 		print(f"[{self.name}] Connecting to {self.host}:{self.port}...")
@@ -143,29 +127,32 @@ class AioStratumClient:
 		"""Listens for incoming messages from the server."""
 		while not self._is_closed and self.reader:
 				try:
-						data = await self.reader.readline()
+						data = await asyncio.wait_for(self.reader.readline(), 90)
 						if not data:
-								if not self._is_closed:
-										print(f"[{self.name}] Connection closed by server.")
+										print(f"[{self.name}] Connection closed by server. reconnect")
 										await self.disconnect()
-								break
+										await self.connect()
+										return
 						message = data.decode('utf-8').strip()
 						if not message:
 								continue
 						#print(f"[{self.name}] <- {message}")
 						response = json.loads(message)
 						await self._handle_response(response)
+				except asyncio.TimeoutError:
+								print(f"[{self.name}] Connection Timeout  reconnect.")
+								await self.disconnect()
+								await self.connect()
+								return
 				except (ConnectionResetError, BrokenPipeError):
-						if not self._is_closed:
-								print(f"[{self.name}] Connection lost.")
+								print(f"[{self.name}] Connection lost. reconnect")
 								await self.disconnect()
 								await self.connect()
 								return
 				except json.JSONDecodeError:
 						print(f"[{self.name}] Error decoding JSON: {message}")
 				except Exception as e:
-						if not self._is_closed:
-								print(f"[{self.name}] An unexpected error occurred in listener: {e}")
+								print(f"[{self.name}] An unexpected error occurred in listener: {e} reconnect")
 								await self.disconnect()
 								await self.connect()
 								return
