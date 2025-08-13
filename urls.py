@@ -4,7 +4,7 @@ urls_b = [
   #"https://foo-job.vercel.app/params",
   #"https://silent-wave-77.vercel.app/params",
   
-  "https://compassionate-prosperity-production-d266.up.railway.app/params",
+  #"https://compassionate-prosperity-production-d266.up.railway.app/params",
   
   #"https://168.107.10.52:10000/params",
   #"https://138.2.119.214:10000/params",
