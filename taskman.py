@@ -28,6 +28,7 @@ async def worker1(id, url, client, job, no):
 		async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=90)) as session:
 			async def send_submit (data, job, no_show):
 				if "result" in data:
+					#print(data)
 					if data['result'] == "True":
 						algo, job_id, bin, mask = struct.unpack("II32sI", bytes.fromhex(data['bin']))
 						cur_job_id = int(job['job_id'], 16)
@@ -36,7 +37,6 @@ async def worker1(id, url, client, job, no):
 							await client.submit(job['job_id'], job['extranonce2'], job['ntime'], data['no'])
 						else:
 							print (f"Invalid Job {cur_job_id:08x} : {job_id:08x}")
-				else:
 					if no_show == 0:
 						print(f"{client.name}({cnt}) ... {url}")
 
@@ -95,6 +95,7 @@ async def task_manager_loop (CLIENT_NAME, CLIENT_URLS, CLIENT_HASH_CNT, CLIENT_B
 		try:
 			try:
 				job = await asyncio.wait_for(client.job_queue.get(), timeout=1)
+				client.job_queue.task_done()
 			except asyncio.TimeoutError:
 				if client._is_closed:
 					await client.shutdown_mining_tasks()

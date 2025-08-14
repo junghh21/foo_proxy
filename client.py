@@ -3,6 +3,7 @@ import json
 import os
 import random
 import time
+import traceback
 import hashlib
 import struct
 
@@ -162,6 +163,7 @@ class AioStratumClient:
 						print(f"[{self.name}] Error decoding JSON: {message}")
 				except Exception as e:
 								print(f"[{self.name}] An unexpected error occurred in listener: {e} disconnect")
+								traceback.print_exc()
 								await self.disconnect()
 								return
 
