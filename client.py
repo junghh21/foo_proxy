@@ -28,14 +28,17 @@ class AioStratumClient:
 	'asyncio' library is the correct and standard tool.
 	"""
 
-	def __init__(self, name, host, port, username, password, agent):
+	def __init__(self, name, urls, hash_cnt, block_time, algo, host, port, username, password, agent):
 		self.name = name
+		self.urls = urls
+		self.hash_cnt = hash_cnt
+		self.block_time = block_time
 		self.host = host
 		self.port = port
 		self.username = username
 		self.password = password
 		self.agent = agent
-		
+
 		self.reader = None
 		self.writer = None
 
@@ -46,18 +49,17 @@ class AioStratumClient:
 		self.target = None
 		self.pool_difficulty = None
 		self.job = None
-
+		self.accept_cnt = 0
+		self.reject_cnt = 0
 		# Concurrency and communication
 		self._request_id = 1
 		self._pending_requests = {}
 		self.job_queue = asyncio.Queue()
 		self._is_closed = True
-	
+
 		self.mask = 0x007F0000
-		self.accept_cnt = 0
-		self.reject_cnt = 0
-		self.task = "bell"
-		self.diff_delay = 30
+		self.algo = algo
+
 		self.mining_tasks = []
 
 	async def shutdown_mining_tasks(self):
@@ -125,7 +127,7 @@ class AioStratumClient:
 
 		try:
 			# Wait for the response from the listener task
-			result = await asyncio.wait_for(future, timeout=30.0)
+			result = await asyncio.wait_for(future, timeout=60.0)
 			return result
 		except asyncio.TimeoutError:
 			self._pending_requests.pop(request_id, None)
@@ -162,7 +164,7 @@ class AioStratumClient:
 								print(f"[{self.name}] An unexpected error occurred in listener: {e} disconnect")
 								await self.disconnect()
 								return
-					
+
 
 	async def _handle_response(self, response):
 		"""Handles both RPC responses and server notifications."""
@@ -182,6 +184,15 @@ class AioStratumClient:
 						await self._handle_notify(params)
 				elif method == 'mining.set_difficulty':
 						await self._handle_set_difficulty(params)
+				elif method == 'mining.ping':
+						payload = {
+							"id": request_id,
+							"result": "pong",
+							"error": 'null'
+						}
+						message = json.dumps(payload) + '\n'
+						self.writer.write(message.encode('utf-8'))
+						await self.writer.drain()
 				else:
 						print(f"[{self.name}] Unhandled notification: {method}")
 		else:
@@ -200,6 +211,8 @@ class AioStratumClient:
 		coinbase_bin = bytes.fromhex(coinb1 + self.extranonce1 + job['extranonce2'] + coinb2)
 		coinbase_hash_bin = hashlib.sha256(hashlib.sha256(coinbase_bin).digest()).digest()
 		merkle_root_bin = coinbase_hash_bin
+		if len(merkle_branch) > 0:
+			print(f"merkel => ({len(merkle_branch)})")
 		for branch in merkle_branch:
 			merkle_root_bin = hashlib.sha256(hashlib.sha256((merkle_root_bin + bytes.fromhex(branch))).digest()).digest()
 		merkle_root_1 = struct.unpack("<8I", merkle_root_bin)
@@ -219,8 +232,9 @@ class AioStratumClient:
 		#print([f"{d:08x}" for d in inputs[:10]])
 		#print([f"{d:08x}" for d in inputs[10:]])
 		input_swap = struct.pack(">20I", *inputs)
+
 		job['bin'] = input_swap.hex()
-		job['mask'] = f"{self.mask:08x}"
+		job['mask']	=	f"{self.mask:08x}"
 		await self.job_queue.put(job)
 
 	async def _handle_set_difficulty(self, params):
@@ -228,7 +242,7 @@ class AioStratumClient:
 		self.pool_difficulty = params[0]
 		# In a real miner, you'd convert this to a target.
 		# For BTC: target = 0x00000000FFFF0000000000000000000000000000000000000000000000000000 / difficulty
-		
+
 		max_target_int = int("00FFFF00000000000000000000000000000000000000000000000000000000", 16)
 		max_target_int2 = max_target_int
 		pool_diff = self.pool_difficulty
@@ -266,7 +280,7 @@ class AioStratumClient:
 		else:
 			print(f"[{self.name}] Worker authorization failed.")
 			return False
-	
+
 	async def subscribe_extranonce(self):
 		print(f"[{self.name}] subscribe_extranonce...")
 		result = await self._send_request('mining.extranonce.subscribe', [])

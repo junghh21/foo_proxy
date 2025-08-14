@@ -6,28 +6,58 @@ import subprocess
 import threading
 import time
 from taskman import task_manager_loop
+import urls 
 
 async def main():
 	main_tasks = []
-	POOL_HOST = 			'yespower.jp2.mine.leywapool.com'
-	POOL_PORT = 			6322
-	WALLET_ADDRESS = 	'bJzPjHhEwjLPeTJGwePQ4KpDxLH1vvZoy4'
-	WORKER_NAME = 		'hh'
-	POOL_PASSWORD = 	'x'
-	AGENT = 					"cpuminer-oqt-25.32"
-	#task = asyncio.create_task(task_manager_loop("bell", POOL_HOST, POOL_PORT, WALLET_ADDRESS, WORKER_NAME, POOL_PASSWORD, AGENT))
+	CLIENT_NAME = 			"bell1"
+	CLIENT_URLS = 			urls.urls_b
+	CLIENT_HASH_CNT = 	200
+	CLIENT_BLOCK_TIME = 60
+	ALGO = 							10
+	POOL_HOST = 				'yespower.jp2.mine.leywapool.com'
+	POOL_PORT = 				6322
+	WALLET_ADDRESS = 		'bJzPjHhEwjLPeTJGwePQ4KpDxLH1vvZoy4'
+	WORKER_NAME = 			'hh'
+	POOL_PASSWORD = 		'x'
+	AGENT = 						"cpuminer-oqt-25.32"
+	#task = asyncio.create_task(task_manager_loop(CLIENT_NAME, CLIENT_URLS, CLIENT_HASH_CNT, CLIENT_BLOCK_TIME, ALGO, POOL_HOST, POOL_PORT, WALLET_ADDRESS, WORKER_NAME, POOL_PASSWORD, AGENT))
 	#main_tasks.append(task)
 
-	POOL_HOST = 			'stratum-eu.rplant.xyz'
-	POOL_PORT = 			17022
-	WALLET_ADDRESS = 	'MdVtFbZSobabqiZL7P4Za4ZUZBWwm3VqSS'
-	WORKER_NAME = 		'hh'
-	POOL_PASSWORD = 	'x'
-	AGENT = 					"cpuminer-oqt-25.32"
-	task = asyncio.create_task(task_manager_loop("micro", POOL_HOST, POOL_PORT, WALLET_ADDRESS, WORKER_NAME, POOL_PASSWORD, AGENT))
-	main_tasks.append(task)
+	CLIENT_NAME = 			"micro1"
+	CLIENT_URLS = 			urls.urls_m
+	CLIENT_HASH_CNT = 	200
+	CLIENT_BLOCK_TIME = 60
+	ALGO = 							11
+	POOL_HOST = 				'stratum-eu.rplant.xyz'
+	POOL_PORT = 				17022
+	WALLET_ADDRESS = 		'MdVtFbZSobabqiZL7P4Za4ZUZBWwm3VqSS'
+	WORKER_NAME = 			'hh'
+	POOL_PASSWORD = 		'x'
+	AGENT = 						"cpuminer-oqt-25.32"
+	#task = asyncio.create_task(task_manager_loop(CLIENT_NAME, CLIENT_URLS, CLIENT_HASH_CNT, CLIENT_BLOCK_TIME, ALGO, POOL_HOST, POOL_PORT, WALLET_ADDRESS, WORKER_NAME, POOL_PASSWORD, AGENT))
+	#main_tasks.append(task)
 
-	done, pending = await asyncio.wait(main_tasks, return_when=asyncio.ALL_COMPLETED)
+	CLIENT_NAME = 			"micro_brg1"
+	CLIENT_URLS = 			urls.urls_brg_m
+	CLIENT_HASH_CNT = 	200*16
+	CLIENT_BLOCK_TIME = 60
+	ALGO = 							11
+	POOL_HOST = 				'stratum-eu.rplant.xyz'
+	POOL_PORT = 				17022
+	WALLET_ADDRESS = 		'MdVtFbZSobabqiZL7P4Za4ZUZBWwm3VqSS'
+	WORKER_NAME = 			'hh'
+	POOL_PASSWORD = 		'x'
+	AGENT = 						"cpuminer-oqt-25.32"
+	task = asyncio.create_task(task_manager_loop(CLIENT_NAME, CLIENT_URLS, CLIENT_HASH_CNT, CLIENT_BLOCK_TIME, ALGO, POOL_HOST, POOL_PORT, WALLET_ADDRESS, WORKER_NAME, POOL_PASSWORD, AGENT))
+	main_tasks.append(task)
+	try: 
+		done, pending = await asyncio.wait(main_tasks, return_when=asyncio.ALL_COMPLETED)
+	except asyncio.CancelledError:
+		for task in main_tasks:
+			task.cancel()
+		await asyncio.gather(*main_tasks, return_exceptions=True) # Ensure tasks are cancelled and cleaned up
+	print("main tasks cancelled")
 
 def check_and_pull(repo_path):
 	try:
@@ -62,8 +92,10 @@ if __name__ == "__main__":
 	os.chdir(script_dir)
 	thread = threading.Thread(target=periodic_git_check, daemon=True)
 	thread.start()
-
-	asyncio.run(main())
-	thread.stop()
-	thread.join()
+	try:
+		asyncio.run(main())
+		thread.stop()
+		thread.join()
+	except KeyboardInterrupt:
+		pass
 	print("\n[Main] Program terminated")

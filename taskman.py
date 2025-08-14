@@ -15,7 +15,7 @@ import importlib
 import urls  # Your module
 
 
-async def worker1(id, url, client, job ,no):
+async def worker1(id, url, client, job, no):
 	cert_file = 'cert.pem'
 	key_file = 'key.pem'
 	ssl_context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
@@ -25,26 +25,35 @@ async def worker1(id, url, client, job ,no):
 	#print(f"Successfully loaded certificate from '{cert_file}' and key from '{key_file}'.")
 
 	try:
-		connector = aiohttp.TCPConnector(ssl=ssl_context)
-		async with aiohttp.ClientSession(connector=connector) as session:
+		async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=90)) as session:
 			async def send_submit (data, job, no_show):
 				if "result" in data:
 					if data['result'] == "True":
-						print(f"{id} : {data['mask']}({job['mask']})")
-						await client.job_queue.put({
-							'type': 2,
-							'job_id': job['job_id'],
-							'extranonce2': job['extranonce2'],
-							'ntime': job['ntime'], # ntime is typically part of the job
-							'nonce': data['no'] # Nonce must be a hex string for submission
-						})
+						algo, job_id, bin, mask = struct.unpack("II32sI", bytes.fromhex(data['bin']))
+						cur_job_id = int(job['job_id'], 16)
+						if cur_job_id == job_id:
+							print(f"{client.name}({id}) : {mask:08x} <= {job['mask']}")
+							await client.submit(job['job_id'], job['extranonce2'], job['ntime'], data['no'])
+						else:
+							print (f"Invalid Job {cur_job_id:08x} : {job_id:08x}")
 				else:
 					if no_show == 0:
-						print(f"{id}({cnt}) ... {url}")
+						print(f"{client.name}({cnt}) ... {url}")
 
+			ALGO = struct.pack("<I", client.algo).hex()
+			JOB_ID = int(job['job_id'], 16).to_bytes(4, byteorder='little').hex()
+			MASK = struct.pack("<I", client.mask).hex()
+			COUNT = struct.pack("<I", client.hash_cnt).hex()
+			job['bin'] = ALGO + \
+										JOB_ID + \
+										job['bin'] + \
+										MASK + \
+										COUNT
 			if ".vercel.app/" in url or ":3000/" in url:
 				while True:
-					async with session.post(url, json={'bin': job['bin'], 'no': f"{no}", 'mask': job['mask']}) as response:
+					async with session.post(url, 
+								json={'bin': job['bin'], 'no': f"{no:08x}"}, 
+								ssl=ssl_context) as response:
 						try:
 							content = await response.text()
 							data = json.loads(content)
@@ -54,7 +63,9 @@ async def worker1(id, url, client, job ,no):
 							print(e)
 							break
 			else:
-				async with session.post(url, json={'bin': job['bin'], 'no': f"{no}", 'mask': job['mask']}) as response:
+				async with session.post(url, 
+							json={'bin': job['bin'], 'no': f"{no:08x}", 'id': f"{id:08x}"}, 
+							ssl=ssl_context) as response:
 					cnt = 0
 					async for line in response.content:
 						#print(line)
@@ -72,12 +83,14 @@ async def worker1(id, url, client, job ,no):
 		print(f"Client response error from {url}: {e.status} - {e.message}")
 	except json.JSONDecodeError:
 		print(f"JSON decode error from {url}. Response was not valid JSON.")
+	except  asyncio.TimeoutError:
+		print(f"Request timed out! {url}.")
 	except Exception as e:
 		print(f"An unexpected error occurred in worker {id} for {url}: {e}")
 		traceback.print_exc()
 
-async def task_manager_loop (name, POOL_HOST, POOL_PORT, WALLET_ADDRESS, WORKER_NAME, POOL_PASSWORD, AGENT):
-	client = AioStratumClient(name, POOL_HOST, POOL_PORT, f"{WALLET_ADDRESS}.{WORKER_NAME}", POOL_PASSWORD, AGENT)
+async def task_manager_loop (CLIENT_NAME, CLIENT_URLS, CLIENT_HASH_CNT, CLIENT_BLOCK_TIME, ALGO, POOL_HOST, POOL_PORT, WALLET_ADDRESS, WORKER_NAME, POOL_PASSWORD, AGENT):
+	client = AioStratumClient(CLIENT_NAME, CLIENT_URLS, CLIENT_HASH_CNT, CLIENT_BLOCK_TIME, ALGO, POOL_HOST, POOL_PORT, f"{WALLET_ADDRESS}.{WORKER_NAME}", POOL_PASSWORD, AGENT)
 	while True:
 		try:
 			try:
@@ -91,33 +104,15 @@ async def task_manager_loop (name, POOL_HOST, POOL_PORT, WALLET_ADDRESS, WORKER_
 					await client.authorize()
 					await client.subscribe_extranonce()
 				continue
-			if job['type'] == 2:
-				await client.submit(job['job_id'], job['extranonce2'], job['ntime'], job['nonce'])
-			elif job['type'] == 1:
+			if job['type'] == 1:
 				# When a new job arrives, cancel all previous mining tasks
 				await client.shutdown_mining_tasks()
-				print(f"[{client.name}] Got new job: {job['job_id']}.")
-				#nonce_space = 2**32
-				nonce_chunk_size = 200*50 # 200try 50 iter nonce_space // num_workers				#
+				print(f"[{client.name}] Got new job: {job['job_id']}.")			#
 				no = random.randint(0xA0000000, 0xB0000000)#os.urandom(4).hex()#"40000000"#
-				importlib.reload(urls)
-				if client.name == "micro":
-					for i, url in enumerate(urls.urls_m):
-						no += nonce_chunk_size
-						no_hex = f"{no:08x}"
-						task = asyncio.create_task(worker1(i, url, client, job, no_hex))
-						client.mining_tasks.append(task)
-					for i, url in enumerate(urls.urls_brg_m):
-						no += 0x10000000
-						no_hex = f"{no:08x}"
-						task = asyncio.create_task(worker1(i, url, client, job, no_hex))
-						client.mining_tasks.append(task)
-				if client.name == "bell":
-					for i, url in enumerate(urls.urls_b):
-						no += nonce_chunk_size
-						no_hex = f"{no:08x}"
-						task = asyncio.create_task(worker1(i, url, client, job, no_hex))
-						client.mining_tasks.append(task)
+				for i, url in enumerate(client.urls):
+					task = asyncio.create_task(worker1(i, url, client, job, no))
+					client.mining_tasks.append(task)
+					no += client.hash_cnt*client.block_time
 		except (KeyboardInterrupt, asyncio.CancelledError):
 			print(f"[Manager] The manager task itself was cancelled")
 			await client.shutdown_mining_tasks()
