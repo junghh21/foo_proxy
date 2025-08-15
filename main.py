@@ -22,8 +22,8 @@ async def main():
 	WORKER_NAME = 			'hh'
 	POOL_PASSWORD = 		'x'
 	AGENT = 						"cpuminer-oqt-25.32"
-	#task = asyncio.create_task(task_manager_loop(CLIENT_NAME, CLIENT_URLS, CLIENT_HASH_CNT, CLIENT_BLOCK_TIME, ALGO, POOL_HOST, POOL_PORT, WALLET_ADDRESS, WORKER_NAME, POOL_PASSWORD, AGENT))
-	#main_tasks.append(task)
+	task = asyncio.create_task(task_manager_loop(CLIENT_NAME, CLIENT_URLS, CLIENT_HASH_CNT, CLIENT_BLOCK_TIME, ALGO, POOL_HOST, POOL_PORT, WALLET_ADDRESS, WORKER_NAME, POOL_PASSWORD, AGENT))
+	main_tasks.append(task)
 
 	CLIENT_NAME = 			"micro1"
 	CLIENT_URLS = 			urls.urls_m
