@@ -122,13 +122,13 @@ class AioStratumClient:
 		self._pending_requests[request_id] = future
 
 		message = json.dumps(payload) + '\n'
-		#print(f"[{self.name}] -> {message.strip()}")
+		print(f"[{self.name}] -> {message.strip()}")
 		self.writer.write(message.encode('utf-8'))
 		await self.writer.drain()
 
 		try:
 			# Wait for the response from the listener task
-			result = await asyncio.wait_for(future, timeout=60.0)
+			result = await asyncio.wait_for(future, timeout=90.0)
 			return result
 		except asyncio.TimeoutError:
 			self._pending_requests.pop(request_id, None)
@@ -145,12 +145,13 @@ class AioStratumClient:
 										print(f"[{self.name}] Connection closed by server. disconnect")
 										await self.disconnect()
 										return
-						message = data.decode('utf-8').strip()
-						if not message:
-								continue
-						#print(f"[{self.name}] <- {message}")
-						response = json.loads(message)
-						await self._handle_response(response)
+						messages = data.decode('utf-8').splitlines(keepends=True)
+						if len(messages) != 1:
+							print(messages)
+						for msg in messages:
+							#print(f"[{self.name}] <- {message}")
+							response = json.loads(msg.strip())
+							await self._handle_response(response)
 				except asyncio.TimeoutError:
 								print(f"[{self.name}] Connection Timeout  disconnect.")
 								await self.disconnect()
@@ -171,14 +172,7 @@ class AioStratumClient:
 	async def _handle_response(self, response):
 		"""Handles both RPC responses and server notifications."""
 		request_id = response.get('id')
-		if request_id is not None and request_id in self._pending_requests:
-				future = self._pending_requests.pop(request_id)
-				error = response.get('error')
-				if error:
-						future.set_exception(StratumError(error))
-				else:
-						future.set_result(response.get('result'))
-		elif 'method' in response:
+		if 'method' in response:
 				# This is a server notification
 				method = response.get('method')
 				params = response.get('params', [])
@@ -197,6 +191,13 @@ class AioStratumClient:
 						await self.writer.drain()
 				else:
 						print(f"[{self.name}] Unhandled notification: {method}")
+		elif request_id is not None and request_id in self._pending_requests:
+				future = self._pending_requests.pop(request_id)
+				error = response.get('error')
+				if error:
+						future.set_exception(StratumError(error))
+				else:
+						future.set_result(response.get('result'))
 		else:
 				print(f"[{self.name}] Received unknown message: {response}")
 
@@ -251,7 +252,7 @@ class AioStratumClient:
 		pool_int = int(max_target_int2/pool_diff)
 		pool_h64 = f"{pool_int:064x}"
 		pool_diff = max_target_int/pool_int
-		pool_rate = pool_diff * 2**32 / 60
+		pool_rate = pool_diff * 2**16 / 60
 		self.mask = int(pool_h64[:8], 16)
 		print(f"[{self.name}] New pool difficulty: {self.pool_difficulty}, {self.mask:08x}, {pool_rate=:.2f} H/s")
 

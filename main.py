@@ -41,7 +41,7 @@ async def main():
 
 	CLIENT_NAME = 			"micro_brg1"
 	CLIENT_URLS = 			urls.urls_brg_m
-	CLIENT_HASH_CNT = 	200*16
+	CLIENT_HASH_CNT = 	200
 	CLIENT_BLOCK_TIME = 60
 	ALGO = 							11
 	POOL_HOST = 				'stratum-eu.rplant.xyz'
